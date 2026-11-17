@@ -1,9 +1,20 @@
 #-*- coding: 'utf-8' -*-
+"""
+Código principal para la ejecución del programa que maneja el bot para un grupo de Telegram.
+
+Autor: David Padilla
+---------------------------------------------------------------------------------------------
+Requirements:
+    You need to run the following command line to install all required dependences.
+
+    pip install python-telegram-bot
+"""
 from __future__ import unicode_literals
 import os
 import Listado_de_opciones as Opciones
 from random import randint as fn_escoger_numero
 from JuegoAdivinaNumero import game
+from LoggerMod import Logger
 
 from telegram import (
 
@@ -71,7 +82,7 @@ def fn_elegir_saludo(obj_contexto) -> str:
     s_firstName = obj_contexto.first_name #Parámetro obligatorio.
     s_lastName = obj_contexto.last_name
     s_userName = obj_contexto.username
-    print(
+    Logger.info(
 
             f"El ID es lo siguiente -> {int_user_id}\n"
             f"El first name es el siguiente -> {s_firstName}\n"
@@ -137,7 +148,9 @@ async def fn_holo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Fin del bloque try
     except Exception as e:
-     await update.message.reply_text(f'Algo salió mal! El detalle del error es el siguiente ->\n-{e}')
+
+        Logger.error(f"Error a la hora de mandar la holo-señal a Dania Sama.El detalle del error es el siguiente ->\n-{e}")
+        await update.message.reply_text(f'Algo salió mal! El detalle del error es el siguiente ->\n-{e}')
 
 ## Fin de la función holo
 
@@ -192,6 +205,12 @@ async def fn_notificar_miembros(
             # Fin del bloque with
         # Fin del bloque Try
         except Exception as e:
+            Logger.error(
+
+                "Ocurrió un error a la hora de notificar a todos los miembros. El detalle es el siguiente:"
+                +f"\n\n{e}\n\nY ocurrió con la ID: {i_ID}"
+
+            )#Fin de la función error del logger
             await context.bot.send_message(
 
                 i_creador_id#ID del admin o del creador que activó la función
@@ -240,6 +259,36 @@ async def fn_manejador_botones_menu(
 
 # Fin de la función fn_manejador_botones_menu para manejo de los botones del menú
 
+def resumen_chat(update: Update) -> str:
+
+    """Texto con el chat_id del grupo y el id del tema (si lo hay)."""
+    msg = update.effective_message
+    chat_id = msg.chat_id
+    thread_id = msg.message_thread_id  # None => tema General / no es foro
+
+    titulo = msg.chat.title or msg.chat.full_name or "(sin nombre)"
+    lineas = [
+
+        f"• chat_id del supergrupo: {chat_id}",
+        f"• tipo: {msg.chat.type}",
+        f"• nombre del grupo: {titulo}",
+
+    ]
+    if thread_id is None:
+        lineas.append("• tema (message_thread_id): None → General / fuera de tema")
+    else:
+        lineas.append(f"• id del tema (message_thread_id): {thread_id}")
+    return "\n".join(lineas)
+
+
+# --- Handlers ----------------------------------------------------------------
+async def cmd_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+    """/chatid (o /id): responde con los IDs del grupo y del tema."""
+    msg = update.effective_message
+    Logger.info("Estos son los IDs del chat donde escribiste:\n\n" + resumen_chat(update))
+    await msg.reply_text("La información solicidada ha sido mostrada en consola y en archivo de logs. Revise sus logs")
+
 # Token sagrado para que Telegram reconozca que esta ejecución es legítima.
 TOKEN = os.environ['BotToken']
 
@@ -250,6 +299,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", fn_start))
     app.add_handler(CommandHandler("Hola", fn_hola))
     app.add_handler(CommandHandler("Holo", fn_holo))
+    app.add_handler(CommandHandler(["chatid", "id"], cmd_chat_id))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'(?i)^oye!*$'), fn_gata))
     #app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, fn_echo))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, fn_despedida))
